@@ -38,7 +38,7 @@ impl Database {
             columns: T::COLUMNS,
             params: vec![],
             predicates: vec![],
-            order_by: OrderBy::default(),
+            order_by: vec![],
             _t: PhantomData::<T>,
         }
     }

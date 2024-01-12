@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
 use crate::model::Model;
-use crate::order_by::{Direction, OrderBy};
+use crate::order_by::{Direction, OrderBy, OrderPredicate};
 use crate::pagination::{Cursor, DefaultSortKeys, Pagination, Row};
 use crate::pool::*;
 use crate::predicates::{Expr, ExprValueType, Predicate};
@@ -30,8 +30,8 @@ pub struct QueryBuilder<'a> {
     pub params: &'a [&'a (dyn ToSql + Sync)],
     #[builder(default = & [])]
     pub predicates: &'a [Predicate<'a>],
-    #[builder(default = None, setter(strip_option))]
-    pub order_by: Option<&'a OrderBy<'a>>,
+    #[builder(default = & [])]
+    pub order_by: &'a [OrderPredicate<'a>],
     #[builder(default = & None)]
     pub before: &'a Option<Cursor>,
     #[builder(default = & None)]
@@ -65,14 +65,12 @@ impl<'a> QueryBuilder<'a> {
     pub fn build_order_by_sql(&self) -> String {
         let mut stmt = "".to_string();
         if self.ty == QueryType::Select {
-            if let Some(order_by) = self.order_by {
-                let order_sql = order_by.to_sql();
-                if !order_sql.is_empty() {
-                    stmt.push_str(" ORDER BY ");
-                    stmt.push_str(&order_sql);
-                }
-                return stmt;
+            let order_sql = OrderBy::new(self.order_by).to_sql();
+            if !order_sql.is_empty() {
+                stmt.push_str(" ORDER BY ");
+                stmt.push_str(&order_sql);
             }
+            return stmt;
         }
 
         let direction = if self.first.is_some() {
