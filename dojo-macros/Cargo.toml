@@ -1,0 +1,28 @@
+[package]
+name = "dojo-macros"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+syn = "2.0"
+quote = "1.0"
+deluxe = "0.5.0"
+proc-macro2 = "1.0"
+uuid = { version = "1.6", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+async-trait = "0.1"
+anyhow = "1.0.79"
+postgres-types = { version = "0.2.6", features = ["derive", "with-serde_json-1"] }
+convert_case = "0.6.0"
+bytes = "1.5.0"
+
+[dependencies.tokio-postgres]
+version = "0.7.2"
+features = [
+    "with-chrono-0_4",
+    "with-uuid-1",
+    "array-impls"
+]
