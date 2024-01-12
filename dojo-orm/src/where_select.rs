@@ -18,7 +18,7 @@ pub struct WhereSelect<'a, T> {
     pub(crate) pool: &'a Pool<PostgresConnectionManager<NoTls>>,
     pub(crate) params: Vec<&'a (dyn ToSql + Sync)>,
     pub(crate) columns: &'a [&'a str],
-    pub(crate) order_by: OrderBy<'a>,
+    pub(crate) order_by: Vec<OrderPredicate<'a>>,
     pub(crate) predicates: Vec<Predicate<'a>>,
     pub(crate) _t: PhantomData<T>,
 }
@@ -32,8 +32,8 @@ where
         self
     }
 
-    pub fn order_by(&'a mut self, order_by: &'a [&'a OrderPredicate]) -> &'a mut Self {
-        self.order_by = OrderBy::new(order_by);
+    pub fn order_by(&'a mut self, order_by: OrderPredicate<'a>) -> &'a mut Self {
+        self.order_by.push(order_by);
         self
     }
 
@@ -86,7 +86,7 @@ where
             .columns(self.columns)
             .params(self.params.as_slice())
             .predicates(self.predicates.as_slice())
-            .order_by(&self.order_by)
+            .order_by(self.order_by.as_slice())
             .ty(QueryType::Select)
             .limit(limit)
             .build()

@@ -34,10 +34,10 @@ impl<'a> From<OrderPredicate<'a>> for String {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct OrderBy<'a>(&'a [&'a OrderPredicate<'a>]);
+pub struct OrderBy<'a>(&'a [OrderPredicate<'a>]);
 
 impl<'a> OrderBy<'a> {
-    pub fn new(values: &'a [&'a OrderPredicate]) -> Self {
+    pub fn new(values: &'a [OrderPredicate]) -> Self {
         Self(values)
     }
 

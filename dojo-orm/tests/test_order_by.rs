@@ -44,7 +44,7 @@ async fn test_order_by_desc() -> anyhow::Result<()> {
 
     let users = db
         .bind::<User>()
-        .order_by(&[&desc("created_at")])
+        .order_by(desc("created_at"))
         .limit(2)
         .await?;
 
@@ -90,7 +90,8 @@ async fn test_order_by_asc() -> anyhow::Result<()> {
 
     let users = db
         .bind::<User>()
-        .order_by(&[&asc("created_at")])
+        .order_by(asc("created_at"))
+        .order_by(desc("id"))
         .limit(2)
         .await?;
 
