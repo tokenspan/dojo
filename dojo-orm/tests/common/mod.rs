@@ -7,7 +7,7 @@ pub mod embedded {
 #[macro_export]
 macro_rules! setup {
     ($db: ident) => {
-        tracing_subscriber::fmt().init();
+        // tracing_subscriber::fmt().init();
         let docker = testcontainers_modules::testcontainers::clients::Cli::default();
         let node = docker.run(testcontainers_modules::postgres::Postgres::default());
         let url = &format!(
