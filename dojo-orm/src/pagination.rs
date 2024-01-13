@@ -14,6 +14,8 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
+pub use async_graphql::*;
+
 pub trait DefaultSortKeys {
     fn keys() -> Vec<String>;
 
@@ -125,7 +127,7 @@ impl Cursor {
     pub fn encode(&self) -> String {
         // it's safe, trust me bro.
         let buf = bincode::serialize(&self.values).unwrap();
-        Base64::encode_string(buf.as_slice())
+        Base64::encode_string(&buf)
     }
 
     pub fn decode(encoded: &str) -> Result<Self> {

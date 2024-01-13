@@ -452,7 +452,7 @@ mod tests {
             .columns(&["name", "age"])
             .default_keys(vec!["created_at".to_string(), "id".to_string()])
             .predicates(predicates)
-            .params(params.as_slice())
+            .params(&params)
             .ty(QueryType::Update)
             .is_returning(true)
             .returning(&["id", "name", "age", "created_at"])
@@ -474,7 +474,7 @@ mod tests {
         let qb = QueryBuilder::builder()
             .table_name("users")
             .columns(&["id", "name", "age", "created_at"])
-            .params(params.as_slice())
+            .params(&params)
             .is_returning(true)
             .ty(QueryType::Insert)
             .build();
@@ -512,7 +512,7 @@ mod tests {
         let qb = QueryBuilder::builder()
             .table_name("users")
             .columns(&["id", "name", "age", "created_at"])
-            .params(params.as_slice())
+            .params(&params)
             .is_returning(true)
             .ty(QueryType::Insert)
             .build();

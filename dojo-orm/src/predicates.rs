@@ -21,6 +21,13 @@ pub enum Predicate<'a> {
     Value(Expr<'a>),
     And(&'a [Predicate<'a>]),
     Or(&'a [Predicate<'a>]),
+    Empty
+}
+
+impl<'a> Default for Predicate<'a> {
+    fn default() -> Self {
+        Predicate::Empty
+    }
 }
 
 impl<'a> Predicate<'a> {
@@ -78,6 +85,7 @@ impl<'a> Predicate<'a> {
                 let query = format!("({})", results.join(" OR "));
                 (Some(query), params)
             }
+            Predicate::Empty => (None, vec![]),
         }
     }
 }

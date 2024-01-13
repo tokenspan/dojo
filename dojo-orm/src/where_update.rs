@@ -23,7 +23,7 @@ pub struct WhereUpdate<'a, T, U> {
 impl<'a, T, U> WhereUpdate<'a, T, U>
 where
     T: Model + Debug,
-    U: UpdateModel + Debug,
+    U: UpdateModel,
 {
     pub fn where_by(&'a mut self, predicate: Predicate<'a>) -> &'a mut Self {
         self.predicates.push(predicate);
@@ -33,9 +33,9 @@ where
     pub async fn exec(&'a self) -> anyhow::Result<T> {
         let qb = QueryBuilder::builder()
             .table_name(T::NAME)
-            .columns(self.columns.as_slice())
-            .params(self.params.as_slice())
-            .predicates(self.predicates.as_slice())
+            .columns(&self.columns)
+            .params(&self.params)
+            .predicates(&self.predicates)
             .ty(QueryType::Update)
             .is_returning(true)
             .returning(T::COLUMNS)

@@ -51,7 +51,7 @@ impl Database {
         let qb = QueryBuilder::builder()
             .table_name(T::NAME)
             .columns(T::COLUMNS)
-            .params(params.as_slice())
+            .params(&params)
             .ty(QueryType::Insert)
             .is_returning(true)
             .build();
@@ -72,7 +72,7 @@ impl Database {
         let qb = QueryBuilder::builder()
             .table_name(T::NAME)
             .columns(T::COLUMNS)
-            .params(params.as_slice())
+            .params(&params)
             .ty(QueryType::Insert)
             .is_returning(true)
             .build();
@@ -84,7 +84,7 @@ impl Database {
     pub fn update<'a, T, U>(&'a self, data: &'a U) -> WhereUpdate<'a, T, U>
     where
         T: Model + Debug,
-        U: UpdateModel + Debug,
+        U: UpdateModel,
     {
         WhereUpdate {
             pool: &self.pool,

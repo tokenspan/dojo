@@ -48,8 +48,8 @@ where
             .table_name(T::NAME)
             .default_keys(T::sort_keys())
             .columns(self.columns)
-            .params(self.params.as_slice())
-            .predicates(self.predicates.as_slice())
+            .params(&self.params)
+            .predicates(&self.predicates)
             .first(first)
             .after(&after)
             .last(last)
@@ -63,8 +63,8 @@ where
         let qb = QueryBuilder::builder()
             .table_name(T::NAME)
             .columns(&["COUNT(*) as count"])
-            .params(self.params.as_slice())
-            .predicates(self.predicates.as_slice())
+            .params(&self.params)
+            .predicates(&self.predicates)
             .ty(QueryType::Paging)
             .build();
 
@@ -84,9 +84,9 @@ where
         QueryBuilder::builder()
             .table_name(T::NAME)
             .columns(self.columns)
-            .params(self.params.as_slice())
-            .predicates(self.predicates.as_slice())
-            .order_by(self.order_by.as_slice())
+            .params(&self.params)
+            .predicates(&self.predicates)
+            .order_by(&self.order_by)
             .ty(QueryType::Select)
             .limit(limit)
             .build()
@@ -104,5 +104,12 @@ where
 
         let execution = Execution::new(self.pool, &qb);
         execution.first().await
+    }
+
+    pub async fn all(&'a self) -> anyhow::Result<Vec<T>> {
+        let qb = self.query_by_limit(1);
+
+        let execution = Execution::new(self.pool, &qb);
+        execution.all().await
     }
 }
