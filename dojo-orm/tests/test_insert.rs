@@ -246,7 +246,21 @@ async fn test_insert_vec_embedded() -> anyhow::Result<()> {
     };
 
     let result = db.insert(&input).await?;
-    println!("{:?}", result);
+    assert_that!(
+        result,
+        pat!(Test {
+            id: anything(),
+            items: contains_each![
+                pat!(Item {
+                    name: eq("item 1".to_string()),
+                }),
+                pat!(Item {
+                    name: eq("item 2".to_string()),
+                })
+            ],
+            created_at: anything(),
+        })
+    );
 
     Ok(())
 }
