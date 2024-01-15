@@ -64,6 +64,10 @@ impl Database {
     where
         T: Model + Debug,
     {
+        if data.is_empty() {
+            return Ok(vec![]);
+        }
+
         let mut params = vec![];
         for d in data {
             params.extend(d.params());

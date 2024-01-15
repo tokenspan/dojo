@@ -17,4 +17,11 @@ CREATE TABLE products
     price      int4,
     status     status,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
-)
+);
+
+CREATE TABLE test
+(
+    id         uuid PRIMARY KEY,
+    items      jsonb[]   NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);

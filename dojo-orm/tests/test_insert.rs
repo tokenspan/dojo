@@ -144,6 +144,30 @@ async fn test_insert_many() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
+async fn test_insert_many_empty() -> anyhow::Result<()> {
+    let db: Database;
+    setup!(db);
+
+    #[derive(Serialize, Deserialize, Debug, Model)]
+    #[dojo(name = "users", sort_keys = ["created_at", "id"])]
+    struct User {
+        id: Uuid,
+        name: String,
+        email: String,
+        created_at: NaiveDateTime,
+        updated_at: NaiveDateTime,
+    }
+
+    let users = db.insert_many::<User>(&[]).await?;
+    assert_that!(users, empty());
+
+    let users = db.bind::<User>().all().await?;
+    assert_that!(users, empty());
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_insert_embedded() -> anyhow::Result<()> {
     let db: Database;
     setup!(db);
@@ -186,6 +210,43 @@ async fn test_insert_embedded() -> anyhow::Result<()> {
             created_at: anything(),
         })
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_insert_vec_embedded() -> anyhow::Result<()> {
+    let db: Database;
+    setup!(db);
+
+    #[derive(Serialize, Deserialize, Debug, EmbeddedModel)]
+    struct Item {
+        name: String,
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Model)]
+    #[dojo(name = "test", sort_keys = ["created_at", "id"])]
+    struct Test {
+        id: Uuid,
+        items: Vec<Item>,
+        created_at: NaiveDateTime,
+    }
+
+    let input = Test {
+        id: Uuid::new_v4(),
+        items: vec![
+            Item {
+                name: "item 1".to_string(),
+            },
+            Item {
+                name: "item 2".to_string(),
+            },
+        ],
+        created_at: Utc::now().naive_utc(),
+    };
+
+    let result = db.insert(&input).await?;
+    println!("{:?}", result);
 
     Ok(())
 }

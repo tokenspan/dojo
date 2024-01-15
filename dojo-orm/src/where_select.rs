@@ -107,7 +107,7 @@ where
     }
 
     pub async fn all(&'a self) -> anyhow::Result<Vec<T>> {
-        let qb = self.query_by_limit(1);
+        let qb = self.query_by_limit(500);
 
         let execution = Execution::new(self.pool, &qb);
         execution.all().await
