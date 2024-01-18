@@ -29,7 +29,7 @@ pub fn expand_update_model_derive(
     input: proc_macro2::TokenStream,
 ) -> deluxe::Result<proc_macro2::TokenStream> {
     // Parse the input tokens into a syntax tree
-    let mut ast = syn::parse2::<syn::DeriveInput>(input)?;
+    let mut ast = syn::parse2::<DeriveInput>(input)?;
 
     let field_attrs = extract_update_model_field_attributes(&mut ast)?;
 

@@ -6,6 +6,7 @@ pub use model::*;
 
 mod database;
 mod execution;
+mod insert_operation;
 mod model;
 pub mod order_by;
 pub mod pagination;

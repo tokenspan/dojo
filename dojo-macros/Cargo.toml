@@ -30,3 +30,6 @@ features = [
     "with-uuid-1",
     "array-impls"
 ]
+
+[dev-dependencies]
+dojo-orm = "0.1.1"

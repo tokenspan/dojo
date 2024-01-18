@@ -33,7 +33,7 @@ async fn test_insert() -> anyhow::Result<()> {
         updated_at: Utc::now().naive_utc(),
     };
 
-    let user = db.insert(&input).await?;
+    let user = db.insert(&input).execute().await?;
     assert_that!(
         user,
         pat!(User {
@@ -94,7 +94,7 @@ async fn test_insert_many() -> anyhow::Result<()> {
         updated_at: Utc::now().naive_utc(),
     };
 
-    let users = db.insert_many(&[input1, input2]).await?;
+    let users = db.insert_many(&[input1, input2]).execute().await?;
     assert_that!(
         users,
         contains_each![
@@ -158,7 +158,7 @@ async fn test_insert_many_empty() -> anyhow::Result<()> {
         updated_at: NaiveDateTime,
     }
 
-    let users = db.insert_many::<User>(&[]).await?;
+    let users = db.insert_many::<User>(&[]).execute().await?;
     assert_that!(users, empty());
 
     let users = db.bind::<User>().all().await?;
@@ -197,7 +197,7 @@ async fn test_insert_embedded() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    let product = db.insert(&input).await?;
+    let product = db.insert(&input).execute().await?;
     assert_that!(
         product,
         pat!(Product {
@@ -245,7 +245,7 @@ async fn test_insert_vec_embedded() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    let result = db.insert(&input).await?;
+    let result = db.insert(&input).execute().await?;
     assert_that!(
         result,
         pat!(Test {
