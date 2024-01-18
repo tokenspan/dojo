@@ -1,13 +1,9 @@
-use crate::execution::Execution;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use tracing::debug;
 
+use crate::insert_operation::{InsertManyOperation, InsertOperation};
 use crate::model::{Model, UpdateModel};
-use crate::order_by::OrderBy;
-use crate::pagination::Cursor;
 use crate::pool::*;
-use crate::query_builder::{QueryBuilder, QueryType};
 use crate::where_delete::WhereDelete;
 use crate::where_select::WhereSelect;
 use crate::where_update::WhereUpdate;
@@ -43,46 +39,36 @@ impl Database {
         }
     }
 
-    pub async fn insert<T>(&self, data: &T) -> anyhow::Result<T>
+    pub async fn drop_table<T>(&self) -> anyhow::Result<()>
     where
-        T: Model + Debug,
+        T: Model,
     {
-        let params = data.params();
-        let qb = QueryBuilder::builder()
-            .table_name(T::NAME)
-            .columns(T::COLUMNS)
-            .params(&params)
-            .ty(QueryType::Insert)
-            .is_returning(true)
-            .build();
+        let query = format!("DROP TABLE IF EXISTS {}", T::NAME);
 
-        let execution = Execution::new(&self.pool, &qb);
-        execution.first_or_throw().await
+        let conn = self.pool.get().await?;
+        conn.execute(&query, &[]).await?;
+
+        Ok(())
     }
 
-    pub async fn insert_many<T>(&self, data: &[T]) -> anyhow::Result<Vec<T>>
+    pub fn insert<'a, T>(&'a self, data: &'a T) -> InsertOperation<'a, T>
     where
         T: Model + Debug,
     {
-        if data.is_empty() {
-            return Ok(vec![]);
+        InsertOperation {
+            pool: &self.pool,
+            data: &data,
         }
+    }
 
-        let mut params = vec![];
-        for d in data {
-            params.extend(d.params());
+    pub fn insert_many<'a, T>(&'a self, data: &'a [T]) -> InsertManyOperation<'a, T>
+    where
+        T: Model + Debug,
+    {
+        InsertManyOperation {
+            pool: &self.pool,
+            data: &data,
         }
-
-        let qb = QueryBuilder::builder()
-            .table_name(T::NAME)
-            .columns(T::COLUMNS)
-            .params(&params)
-            .ty(QueryType::Insert)
-            .is_returning(true)
-            .build();
-
-        let execution = Execution::new(&self.pool, &qb);
-        execution.all().await
     }
 
     pub fn update<'a, T, U>(&'a self, data: &'a U) -> WhereUpdate<'a, T, U>

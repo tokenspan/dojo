@@ -1,4 +1,6 @@
-use syn::{Data, Fields};
+use quote::quote;
+use std::collections::HashMap;
+use syn::{Data, DeriveInput, Fields};
 
 const SUPPORTED_TYPES: &[&str] = &["i32", "i64", "Uuid", "String", "NaiveDateTime"];
 
@@ -9,6 +11,29 @@ struct ModelStructAttrs {
     sort_keys: Vec<String>,
 }
 
+#[derive(deluxe::ExtractAttributes)]
+#[deluxe(attributes(dojo))]
+struct ModelFieldAttributes {
+    #[deluxe(default = false)]
+    skip: bool,
+}
+
+fn extract_model_field_attributes(
+    ast: &mut DeriveInput,
+) -> deluxe::Result<HashMap<String, crate::expand_model_derive::ModelFieldAttributes>> {
+    let mut field_attrs = HashMap::new();
+
+    if let Data::Struct(s) = &mut ast.data {
+        for field in s.fields.iter_mut() {
+            let field_name = field.ident.as_ref().unwrap().to_string();
+            let attrs = deluxe::extract_attributes(field)?;
+            field_attrs.insert(field_name, attrs);
+        }
+    }
+
+    Ok(field_attrs)
+}
+
 pub fn expand_model_derive(
     input: proc_macro2::TokenStream,
 ) -> deluxe::Result<proc_macro2::TokenStream> {
@@ -17,6 +42,7 @@ pub fn expand_model_derive(
 
     // Extract the attributes from the input
     let ModelStructAttrs { name, sort_keys } = deluxe::extract_attributes(&mut ast)?;
+    let field_attrs = extract_model_field_attributes(&mut ast)?;
 
     // Define impl variables
     let ident = &ast.ident;
@@ -34,9 +60,20 @@ pub fn expand_model_derive(
         .filter_map(|f| f.ident)
         .collect::<Vec<_>>();
 
-    let field_idents_str = field_idents
+    let ident_columns = field_idents
         .iter()
-        .map(|i| i.to_string())
+        .filter_map(|ident| {
+            let skip = field_attrs
+                .get(&ident.to_string())
+                .map(|attrs| attrs.skip)
+                .unwrap_or(false);
+
+            if !skip {
+                Some(ident)
+            } else {
+                None
+            }
+        })
         .collect::<Vec<_>>();
 
     let supported_values = fields
@@ -57,6 +94,31 @@ pub fn expand_model_derive(
         })
         .collect::<Vec<_>>();
 
+    let struct_fields_idents = field_idents
+        .iter()
+        .map(|ident| {
+            let skip = field_attrs
+                .get(&ident.to_string())
+                .map(|attrs| attrs.skip)
+                .unwrap_or(false);
+
+            if !skip {
+                quote! {
+                    #ident: row.try_get(stringify!(#ident))?,
+                }
+            } else {
+                quote! {
+                    #ident: Default::default(),
+                }
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let columns = ident_columns
+        .iter()
+        .map(|ident| ident.to_string())
+        .collect::<Vec<_>>();
+
     // Define the output tokens
     let expanded = quote::quote! {
         #[async_trait::async_trait]
@@ -64,16 +126,16 @@ pub fn expand_model_derive(
             const NAME: &'static str = #name;
 
             const COLUMNS: &'static [&'static str] = &[
-                #(#field_idents_str),*
+                #(#columns),*
             ];
 
             fn params(&self) -> Vec<&(dyn dojo_orm::types::ToSql + Sync)> {
-                vec![#(&self.#field_idents),*]
+                vec![#(&self.#ident_columns),*]
             }
 
             fn from_row(row: tokio_postgres::Row) -> anyhow::Result<Self> {
                 Ok(#ident {
-                    #(#field_idents: row.try_get(stringify!(#field_idents))?),*
+                    #(#struct_fields_idents)*
                 })
             }
 
