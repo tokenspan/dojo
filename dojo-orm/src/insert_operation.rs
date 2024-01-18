@@ -22,7 +22,7 @@ impl<'a, T> InsertOperation<'a, T>
 where
     T: Model + Debug,
 {
-    pub async fn execute(&self) -> anyhow::Result<T>
+    pub async fn exec(&self) -> anyhow::Result<T>
     where
         T: Model + Debug,
     {
@@ -46,7 +46,7 @@ pub struct InsertManyOperation<'a, T> {
 }
 
 impl<'a, T> InsertManyOperation<'a, T> {
-    pub async fn execute(&self) -> anyhow::Result<Vec<T>>
+    pub async fn exec(&self) -> anyhow::Result<Vec<T>>
     where
         T: Model + Debug,
     {
