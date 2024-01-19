@@ -92,6 +92,23 @@ where
             .build()
     }
 
+    pub async fn count(&'a self) -> anyhow::Result<i64> {
+        let qb = QueryBuilder::builder()
+            .table_name(T::NAME)
+            .columns(&["COUNT(*) as count"])
+            .params(&self.params)
+            .predicates(&self.predicates)
+            .ty(QueryType::Select)
+            .build();
+
+        let execution = Execution::new(self.pool, &qb);
+        let row = execution.query_one().await?;
+
+        let count = row.get("count");
+
+        Ok(count)
+    }
+
     pub async fn limit(&'a self, limit: i64) -> anyhow::Result<Vec<T>> {
         let qb = self.query_by_limit(limit);
 
