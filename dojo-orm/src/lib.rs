@@ -22,6 +22,7 @@ pub mod prelude {
 }
 
 pub mod types {
+    pub use pgvector::Vector;
     pub use postgres_types::*;
 }
 

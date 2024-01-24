@@ -3,7 +3,7 @@ use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
 
 use crate::model::Model;
-use crate::order_by::{Direction, OrderBy, OrderPredicate};
+use crate::order_by::{Direction, OrderPredicate};
 use crate::pagination::{Cursor, DefaultSortKeys, Pagination, Row};
 use crate::pool::*;
 use crate::predicates::{Expr, ExprValueType, Predicate};
@@ -47,6 +47,12 @@ pub struct QueryBuilder<'a> {
     #[builder(default = None, setter(strip_option))]
     pub limit: Option<i64>,
     pub ty: QueryType,
+    #[builder(default = false)]
+    pub on_conflict: bool,
+    #[builder(default = None, setter(strip_option))]
+    pub conflict_target: Option<&'a [&'a str]>,
+    #[builder(default = None, setter(strip_option))]
+    pub conflict_update: Option<&'a [(&'a str, &'a (dyn ToSql + Sync))]>,
 }
 
 impl<'a> QueryBuilder<'a> {
@@ -62,15 +68,35 @@ impl<'a> QueryBuilder<'a> {
         stmt
     }
 
-    pub fn build_order_by_sql(&self) -> String {
+    pub fn build_order_by_sql(
+        &self,
+        params_index: &mut usize,
+    ) -> (String, Vec<&(dyn ToSql + Sync)>) {
         let mut stmt = "".to_string();
         if self.ty == QueryType::Select {
-            let order_sql = OrderBy::new(self.order_by).to_sql();
-            if !order_sql.is_empty() {
+            let mut params: Vec<&(dyn ToSql + Sync)> = vec![];
+
+            if !self.order_by.is_empty() {
                 stmt.push_str(" ORDER BY ");
-                stmt.push_str(&order_sql);
+
+                for op in self.order_by {
+                    match op {
+                        OrderPredicate::Asc(column) => {
+                            stmt.push_str(&format!("{} ASC", column));
+                        }
+                        OrderPredicate::Desc(column) => {
+                            stmt.push_str(&format!("{} DESC", column));
+                        }
+                        OrderPredicate::Nearest(column, vector) => {
+                            stmt.push_str(&format!("{} <-> ${}", column, params_index));
+                            params.push(vector);
+                            *params_index += 1;
+                        }
+                    }
+                }
             }
-            return stmt;
+
+            return (stmt, params);
         }
 
         let direction = if self.first.is_some() {
@@ -92,7 +118,7 @@ impl<'a> QueryBuilder<'a> {
             stmt.push_str(&order_sql);
         }
 
-        stmt
+        (stmt, vec![])
     }
 
     pub fn build_where_sql(&self, params_index: &mut usize) -> (String, Vec<&(dyn ToSql + Sync)>) {
@@ -167,14 +193,16 @@ impl<'a> QueryBuilder<'a> {
         let mut params_index = 1;
         let mut stmt = self.build_select_from_sql();
 
-        let (where_sql, params) = self.build_where_sql(&mut params_index);
+        let (where_sql, where_params) = self.build_where_sql(&mut params_index);
         stmt.push_str(&where_sql);
 
-        let order_by_sql = self.build_order_by_sql();
+        let (order_by_sql, order_by_params) = self.build_order_by_sql(&mut params_index);
         stmt.push_str(&order_by_sql);
 
         let limit_sql = self.build_limit_sql();
         stmt.push_str(&limit_sql);
+
+        let params = [where_params, order_by_params].concat();
 
         (stmt, params)
     }
@@ -231,10 +259,48 @@ impl<'a> QueryBuilder<'a> {
         }
         stmt.push_str(&values.join(", "));
 
+        let (on_conflict_sql, on_conflict_params) = self.build_on_conflict(&mut params_index);
+        stmt.push_str(&on_conflict_sql);
+
+        let mut params = self.params.to_vec();
+        params.extend(on_conflict_params);
+
         let returning_sql = self.build_returning_sql();
         stmt.push_str(&returning_sql);
 
-        (stmt, self.params.to_vec())
+        (stmt, params)
+    }
+
+    pub fn build_on_conflict(
+        &self,
+        params_index: &mut usize,
+    ) -> (String, Vec<&(dyn ToSql + Sync)>) {
+        let mut stmt = "".to_string();
+
+        if let Some(conflict_target) = self.conflict_target {
+            stmt.push_str(" ON CONFLICT (");
+            stmt.push_str(&conflict_target.join(", "));
+            stmt.push_str(")");
+        }
+
+        let mut params = vec![];
+        if let Some(conflict_update) = self.conflict_update {
+            if !conflict_update.is_empty() {
+                stmt.push_str(" DO UPDATE SET ");
+                let mut sets = vec![];
+                for (column, value) in conflict_update {
+                    sets.push(format!("{} = ${}", column, params_index));
+                    params.push(*value);
+                    *params_index += 1;
+                }
+
+                stmt.push_str(&sets.join(", "));
+            } else {
+                stmt.push_str(" DO NOTHING");
+            }
+        }
+
+        (stmt, params)
     }
 
     pub fn build_returning_sql(&self) -> String {
@@ -484,6 +550,61 @@ mod tests {
             "INSERT INTO users (id, name, age, created_at) VALUES ($1, $2, $3, $4) RETURNING id, name, age, created_at"
         );
         assert_eq!(params.len(), 4);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_build_insert_on_conflict_do_nothing_sql() -> anyhow::Result<()> {
+        let id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+        let name = "test".to_string();
+        let created_at = NaiveDateTime::parse_from_str("2024-01-07 12:34:56", "%Y-%m-%d %H:%M:%S")?;
+        let params: Vec<&(dyn ToSql + Sync)> = vec![&id, &name, &20, &created_at];
+
+        let qb = QueryBuilder::builder()
+            .table_name("users")
+            .columns(&["id", "name", "age", "created_at"])
+            .params(&params)
+            .is_returning(true)
+            .ty(QueryType::Insert)
+            .conflict_target(&["id", "name"])
+            .build();
+        let (stmt, params) = qb.build_sql()?;
+
+        assert_eq!(
+            stmt,
+            "INSERT INTO users (id, name, age, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id, name) DO NOTHING RETURNING id, name, age, created_at"
+        );
+        assert_eq!(params.len(), 4);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_build_insert_on_conflict_do_update_sql() -> anyhow::Result<()> {
+        let id = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+        let name = "test".to_string();
+        let created_at = NaiveDateTime::parse_from_str("2024-01-07 12:34:56", "%Y-%m-%d %H:%M:%S")?;
+        let params: Vec<&(dyn ToSql + Sync)> = vec![&id, &name, &20, &created_at];
+
+        let binding: Vec<(&str, &(dyn ToSql + Sync))> =
+            vec![("name", &name), ("age", &20), ("created_at", &created_at)];
+        let qb = QueryBuilder::builder()
+            .table_name("users")
+            .columns(&["id", "name", "age", "created_at"])
+            .params(&params)
+            .is_returning(true)
+            .ty(QueryType::Insert)
+            .conflict_target(&["id", "name"])
+            .conflict_update(&binding)
+            .build();
+        let (stmt, params) = qb.build_sql()?;
+
+        assert_eq!(
+            stmt,
+            "INSERT INTO users (id, name, age, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (id, name) DO UPDATE SET name = $5, age = $6, created_at = $7 RETURNING id, name, age, created_at"
+        );
+        assert_eq!(params.len(), 7);
 
         Ok(())
     }

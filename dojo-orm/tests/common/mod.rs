@@ -7,9 +7,15 @@ pub mod embedded {
 #[macro_export]
 macro_rules! setup {
     ($db: ident) => {
-        // tracing_subscriber::fmt().init();
+        tracing_subscriber::fmt().init();
         let docker = testcontainers_modules::testcontainers::clients::Cli::default();
-        let node = docker.run(testcontainers_modules::postgres::Postgres::default());
+        let image =
+            testcontainers_modules::testcontainers::GenericImage::new("ankane/pgvector", "latest")
+                .with_env_var("POSTGRES_DB", "postgres")
+                .with_env_var("POSTGRES_PASSWORD", "postgres")
+                .with_env_var("POSTGRES_USER", "postgres")
+                .with_exposed_port(5432);
+        let node = docker.run(image);
         let url = &format!(
             "postgres://postgres:postgres@localhost:{}/postgres",
             node.get_host_port_ipv4(5432)

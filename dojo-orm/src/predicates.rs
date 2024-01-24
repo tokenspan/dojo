@@ -6,14 +6,38 @@ use crate::types::ToSql;
 pub enum ExprValueType {
     Value,
     Array,
+    Function,
 }
 
 #[derive(Debug, Clone)]
-pub struct Expr<'a> {
-    pub ty: ExprValueType,
+pub struct ExprValue<'a> {
     pub column: Cow<'a, str>,
     pub condition: &'a str,
     pub value: &'a (dyn ToSql + Sync),
+}
+
+#[derive(Debug, Clone)]
+pub struct ExprArray<'a> {
+    pub column: Cow<'a, str>,
+    pub condition: &'a str,
+    pub values: &'a (dyn ToSql + Sync),
+}
+
+#[derive(Debug, Clone)]
+pub struct ExprFunction<'a> {
+    pub column: Cow<'a, str>,
+    pub condition: &'a str,
+    pub name: &'a str,
+    pub args: &'a [&'a (dyn ToSql + Sync)],
+}
+
+#[derive(Debug, Clone)]
+pub enum Expr<'a> {
+    Value(ExprValue<'a>),
+    Array(ExprArray<'a>),
+    Function(ExprFunction<'a>),
+    Raw(String),
+    RawStr(&'a str),
 }
 
 #[derive(Debug, Clone)]
@@ -21,7 +45,7 @@ pub enum Predicate<'a> {
     Value(Expr<'a>),
     And(&'a [Predicate<'a>]),
     Or(&'a [Predicate<'a>]),
-    Empty
+    Empty,
 }
 
 impl<'a> Default for Predicate<'a> {
@@ -37,16 +61,46 @@ impl<'a> Predicate<'a> {
     ) -> (Option<String>, Vec<&'a (dyn ToSql + Sync)>) {
         match self {
             Predicate::Value(expr) => {
-                let query = match expr.ty {
-                    ExprValueType::Value => {
-                        format!("{} {} ${}", expr.column, expr.condition, params_index)
+                let mut params: Vec<&'a (dyn ToSql + Sync)> = vec![];
+                let query = match expr {
+                    Expr::Value(expr) => {
+                        let query = format!("{} {} ${}", expr.column, expr.condition, params_index);
+                        params.push(expr.value);
+                        *params_index += 1;
+
+                        query
                     }
-                    ExprValueType::Array => {
-                        format!("{} {} ANY(${})", expr.column, expr.condition, params_index)
+                    Expr::Array(expr) => {
+                        let query =
+                            format!("{} {} ANY(${})", expr.column, expr.condition, params_index);
+
+                        params.push(expr.values);
+                        *params_index += 1;
+
+                        query
                     }
+                    Expr::Function(expr) => {
+                        let mut formatted_args = vec![];
+                        for arg in expr.args {
+                            params.push(*arg);
+                            formatted_args.push(format!("${}", params_index));
+                            *params_index += 1;
+                        }
+
+                        let query = format!(
+                            "{} {} {}({})",
+                            expr.column,
+                            expr.condition,
+                            expr.name,
+                            formatted_args.join(", ")
+                        );
+
+                        query
+                    }
+                    Expr::Raw(raw) => raw.to_string(),
+                    Expr::RawStr(raw) => raw.to_string(),
                 };
-                let params = vec![expr.value];
-                *params_index += 1;
+
                 (Some(query), params)
             }
             Predicate::And(predicates) => {
@@ -99,79 +153,116 @@ pub fn or<'a>(predicates: &'a [Predicate<'a>]) -> Predicate<'a> {
 }
 
 pub fn equals<'a, T: ToSql + Sync>(column: &'a str, value: &'a T) -> Predicate<'a> {
-    Predicate::Value(Expr {
-        ty: ExprValueType::Value,
+    Predicate::Value(Expr::Value(ExprValue {
         column: column.into(),
         condition: "=",
         value,
-    })
+    }))
 }
 
-pub fn in_list<'a, T: ToSql + Sync>(column: &'a str, values: &'a T) -> Predicate<'a> {
-    Predicate::Value(Expr {
-        ty: ExprValueType::Array,
+pub fn in_list<'a>(column: &'a str, values: &'a (dyn ToSql + Sync)) -> Predicate<'a> {
+    Predicate::Value(Expr::Array(ExprArray {
         column: column.into(),
         condition: "=",
-        value: values,
-    })
+        values,
+    }))
+}
+
+pub fn text_search<'a>(column: &'a str, lang: &'a str, value: &'a str) -> Predicate<'a> {
+    Predicate::Value(Expr::Raw(
+        format!(
+            "{} @@ websearch_to_tsquery('{}', '{}')",
+            column, lang, value
+        )
+        .to_string(),
+    ))
+}
+
+pub fn raw<'a>(raw: String) -> Predicate<'a> {
+    Predicate::Value(Expr::Raw(raw))
+}
+
+pub fn raw_str(raw: &str) -> Predicate {
+    Predicate::Value(Expr::RawStr(raw))
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_and() {
-        // use super::{and, eq, in_list, Op};
-        // use crate::types::ToSql;
-        //
-        // let op = and(&[eq("foo", &1), eq("bar", &2), in_list("baz", &vec![3, 4, 5])]);
-        //
-        // match op {
-        //     Op::And(predicates) => {
-        //         assert_eq!(predicates.len(), 3);
-        //         match &predicates[0] {
-        //             Op::Value(op_value) => {
-        //                 assert_eq!(op_value.column, "foo");
-        //                 assert_eq!(op_value.op, "=");
-        //                 assert_eq!(
-        //                     op_value
-        //                         .value
-        //                         .to_sql(&crate::types::Type::INT4, &mut vec![])
-        //                         .unwrap(),
-        //                     1
-        //                 );
-        //             }
-        //             _ => panic!("Expected Op::Value"),
-        //         }
-        //         match &predicates[1] {
-        //             Op::Value(op_value) => {
-        //                 assert_eq!(op_value.column, "bar");
-        //                 assert_eq!(op_value.op, "=");
-        //                 assert_eq!(
-        //                     op_value
-        //                         .value
-        //                         .to_sql(&crate::types::Type::INT4, &mut vec![])
-        //                         .unwrap(),
-        //                     2
-        //                 );
-        //             }
-        //             _ => panic!("Expected Op::Value"),
-        //         }
-        //         match &predicates[2] {
-        //             Op::Value(op_value) => {
-        //                 assert_eq!(op_value.column, "baz");
-        //                 assert_eq!(op_value.op, "IN");
-        //                 assert_eq!(
-        //                     op_value
-        //                         .value
-        //                         .to_sql(&crate::types::Type::INT4, &mut vec![])
-        //                         .unwrap(),
-        //                     vec![3, 4, 5]
-        //                 );
-        //             }
-        //             _ => panic!("Expected Op::Value"),
-        //         }
-        //     }
-        //     _ => panic!("Expected Op::And"),
-        // }
+        let predicates = [
+            equals("id", &1),
+            equals("name", &"test"),
+            equals("age", &20),
+            equals("is_active", &true),
+        ];
+        let predicates = and(&predicates);
+
+        let (query, params) = predicates.to_sql(&mut 1);
+        assert_eq!(
+            query.unwrap(),
+            "(id = $1 AND name = $2 AND age = $3 AND is_active = $4)"
+        );
+        assert_eq!(params.len(), 4);
+    }
+
+    #[test]
+    fn test_text_search() {
+        let predicates = [text_search("name", "english", "test")];
+        let predicates = and(&predicates);
+
+        let (query, params) = predicates.to_sql(&mut 1);
+        assert_eq!(
+            query.unwrap(),
+            "(name @@ websearch_to_tsquery('english', 'test'))"
+        );
+        assert_eq!(params.len(), 0);
+    }
+
+    #[test]
+    fn test_or() {
+        let predicates = [
+            equals("id", &1),
+            equals("name", &"test"),
+            equals("age", &20),
+            equals("is_active", &true),
+        ];
+        let predicates = or(&predicates);
+
+        let (query, params) = predicates.to_sql(&mut 1);
+        assert_eq!(
+            query.unwrap(),
+            "(id = $1 OR name = $2 OR age = $3 OR is_active = $4)"
+        );
+        assert_eq!(params.len(), 4);
+    }
+
+    #[test]
+    fn test_and_or() {
+        let predicates = [
+            equals("id", &1),
+            equals("name", &"test"),
+            equals("age", &20),
+            equals("is_active", &true),
+        ];
+        let and_predicates = and(&predicates);
+
+        let predicates = [
+            and_predicates,
+            equals("id", &1),
+            equals("name", &"test"),
+            equals("age", &20),
+            equals("is_active", &true),
+        ];
+        let or_predicates = or(&predicates);
+
+        let (query, params) = or_predicates.to_sql(&mut 1);
+        assert_eq!(
+            query.unwrap(),
+            "((id = $1 AND name = $2 AND age = $3 AND is_active = $4) OR id = $5 OR name = $6 OR age = $7 OR is_active = $8)"
+        );
+        assert_eq!(params.len(), 8);
     }
 }

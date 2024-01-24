@@ -1,4 +1,5 @@
 use async_graphql::Enum;
+use pgvector::Vector;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use strum::EnumString;
@@ -11,6 +12,9 @@ pub enum Direction {
     #[graphql(name = "desc")]
     #[strum(serialize = "desc", serialize = "DESC")]
     Desc,
+    #[graphql(name = "nearest")]
+    #[strum(serialize = "nearest", serialize = "NEAREST")]
+    Nearest,
 }
 
 impl Display for Direction {
@@ -18,58 +22,25 @@ impl Display for Direction {
         match self {
             Direction::Asc => write!(f, "ASC"),
             Direction::Desc => write!(f, "DESC"),
+            Direction::Nearest => write!(f, "NEAREST"),
         }
     }
 }
 #[derive(Debug, Clone)]
-pub struct OrderPredicate<'a> {
-    pub column: &'a str,
-    pub direction: Direction,
-}
-
-impl<'a> From<OrderPredicate<'a>> for String {
-    fn from(value: OrderPredicate<'a>) -> Self {
-        format!("{} {}", value.column, value.direction)
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct OrderBy<'a>(&'a [OrderPredicate<'a>]);
-
-impl<'a> OrderBy<'a> {
-    pub fn new(values: &'a [OrderPredicate]) -> Self {
-        Self(values)
-    }
-
-    pub fn to_sql(&self) -> String {
-        let mut stmt = "".to_string();
-        if let Some(value) = self.0.first() {
-            stmt.push_str(value.column);
-            stmt.push(' ');
-            stmt.push_str(value.direction.to_string().as_str());
-        }
-
-        for value in self.0.iter().skip(1) {
-            stmt.push_str(", ");
-            stmt.push_str(value.column);
-            stmt.push(' ');
-            stmt.push_str(Direction::Asc.to_string().as_str());
-        }
-
-        stmt
-    }
+pub enum OrderPredicate<'a> {
+    Asc(&'a str),
+    Desc(&'a str),
+    Nearest(&'a str, &'a Vector),
 }
 
 pub fn asc(column: &str) -> OrderPredicate {
-    OrderPredicate {
-        column,
-        direction: Direction::Asc,
-    }
+    OrderPredicate::Asc(column)
 }
 
 pub fn desc(column: &str) -> OrderPredicate {
-    OrderPredicate {
-        column,
-        direction: Direction::Desc,
-    }
+    OrderPredicate::Desc(column)
+}
+
+pub fn nearest<'a>(column: &'a str, vector: &'a Vector) -> OrderPredicate<'a> {
+    OrderPredicate::Nearest(column, vector)
 }

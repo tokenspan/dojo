@@ -8,6 +8,7 @@ const SUPPORTED_TYPES: &[&str] = &["i32", "i64", "Uuid", "String", "NaiveDateTim
 #[deluxe(attributes(dojo))]
 struct ModelStructAttrs {
     name: String,
+    #[deluxe(default)]
     sort_keys: Vec<String>,
 }
 

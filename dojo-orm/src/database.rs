@@ -1,5 +1,7 @@
+use anyhow::Result;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use tokio_postgres::Row;
 
 use crate::insert_operation::{InsertManyOperation, InsertOperation};
 use crate::model::{Model, UpdateModel};
@@ -95,5 +97,10 @@ impl Database {
             predicates: vec![],
             _t: PhantomData,
         }
+    }
+
+    pub async fn raw_query(&self, query: &str) -> Result<Vec<Row>> {
+        let conn = self.pool.get().await?;
+        conn.query(query, &[]).await.map_err(Into::into)
     }
 }

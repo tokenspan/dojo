@@ -7,7 +7,7 @@ use crate::execution::Execution;
 use tracing::debug;
 
 use crate::model::Model;
-use crate::order_by::{OrderBy, OrderPredicate};
+use crate::order_by::OrderPredicate;
 use crate::pagination::{Cursor, DefaultSortKeys, Pagination};
 use crate::pool::*;
 use crate::predicates::{Expr, ExprValueType, Predicate};
