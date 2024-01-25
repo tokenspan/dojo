@@ -33,7 +33,7 @@ async fn test_insert() -> anyhow::Result<()> {
         updated_at: Utc::now().naive_utc(),
     };
 
-    let user = db.insert(&input).exec().await?;
+    let user = db.insert(&[&input]).first().await?.unwrap();
     assert_that!(
         user,
         pat!(User {
@@ -86,10 +86,10 @@ async fn test_insert_conflict_do_nothing() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
     };
-    db.insert(&input).exec().await?;
+    db.insert(&[&input]).all().await?;
 
     let user = db
-        .insert(&input)
+        .insert(&[&input])
         .on_conflict(&["email"])
         .do_nothing()
         .first()
@@ -122,10 +122,10 @@ async fn test_insert_conflict_update() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
     };
-    db.insert(&input).exec().await?;
+    db.insert(&[&input]).all().await?;
 
     let user = db
-        .insert(&input)
+        .insert(&[&input])
         .on_conflict(&["email"])
         .do_update(&[("name", &"linh13")])
         .first()
@@ -166,7 +166,7 @@ async fn test_insert_many() -> anyhow::Result<()> {
         updated_at: Utc::now().naive_utc(),
     };
 
-    let users = db.insert_many(&[input1, input2]).exec().await?;
+    let users = db.insert(&[&input1, &input2]).all().await?;
     assert_that!(
         users,
         contains_each![
@@ -230,7 +230,7 @@ async fn test_insert_many_empty() -> anyhow::Result<()> {
         updated_at: NaiveDateTime,
     }
 
-    let users = db.insert_many::<User>(&[]).exec().await?;
+    let users = db.insert::<User>(&[]).all().await?;
     assert_that!(users, empty());
 
     let users = db.bind::<User>().all().await?;
@@ -269,7 +269,7 @@ async fn test_insert_embedded() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    let product = db.insert(&input).exec().await?;
+    let product = db.insert(&[&input]).first().await?.unwrap();
     assert_that!(
         product,
         pat!(Product {
@@ -317,7 +317,7 @@ async fn test_insert_vec_embedded() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    let result = db.insert(&input).exec().await?;
+    let result = db.insert(&[&input]).first().await?.unwrap();
     assert_that!(
         result,
         pat!(Test {

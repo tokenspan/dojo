@@ -1,4 +1,5 @@
 use chrono::{NaiveDateTime, Utc};
+use futures_util::StreamExt;
 use googletest::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -26,13 +27,14 @@ async fn test_delete_1() -> anyhow::Result<()> {
     }
 
     let id = Uuid::new_v4();
-    db.insert(&User {
+    db.insert(&[&User {
         id,
         name: "linh12".to_string(),
         email: "linh12@gmail.com".to_string(),
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
-    })
+    }])
+    .all()
     .await?;
 
     let user = db

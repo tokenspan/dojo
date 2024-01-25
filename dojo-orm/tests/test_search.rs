@@ -35,7 +35,7 @@ async fn test_raw_text_search() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    db.insert_many(&[user1, user2]).exec().await?;
+    db.insert(&[&user1, &user2]).all().await?;
 
     let user = db
         .bind::<Movie>()
@@ -77,7 +77,7 @@ async fn test_text_search() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    db.insert_many(&[user1, user2]).exec().await?;
+    db.insert(&[&user1, &user2]).all().await?;
 
     let user = db
         .bind::<Movie>()

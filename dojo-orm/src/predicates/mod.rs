@@ -41,26 +41,26 @@ pub enum Expr<'a> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Predicate<'a> {
+pub enum WherePredicate<'a> {
     Value(Expr<'a>),
-    And(&'a [Predicate<'a>]),
-    Or(&'a [Predicate<'a>]),
+    And(&'a [WherePredicate<'a>]),
+    Or(&'a [WherePredicate<'a>]),
     Empty,
 }
 
-impl<'a> Default for Predicate<'a> {
+impl<'a> Default for WherePredicate<'a> {
     fn default() -> Self {
-        Predicate::Empty
+        WherePredicate::Empty
     }
 }
 
-impl<'a> Predicate<'a> {
+impl<'a> WherePredicate<'a> {
     pub fn to_sql(
         &self,
         params_index: &mut usize,
     ) -> (Option<String>, Vec<&'a (dyn ToSql + Sync)>) {
         match self {
-            Predicate::Value(expr) => {
+            WherePredicate::Value(expr) => {
                 let mut params: Vec<&'a (dyn ToSql + Sync)> = vec![];
                 let query = match expr {
                     Expr::Value(expr) => {
@@ -103,7 +103,7 @@ impl<'a> Predicate<'a> {
 
                 (Some(query), params)
             }
-            Predicate::And(predicates) => {
+            WherePredicate::And(predicates) => {
                 if predicates.is_empty() {
                     return (None, vec![]);
                 }
@@ -121,7 +121,7 @@ impl<'a> Predicate<'a> {
                 let query = format!("({})", results.join(" AND "));
                 (Some(query), params)
             }
-            Predicate::Or(predicates) => {
+            WherePredicate::Or(predicates) => {
                 if predicates.is_empty() {
                     return (None, vec![]);
                 }
@@ -139,37 +139,37 @@ impl<'a> Predicate<'a> {
                 let query = format!("({})", results.join(" OR "));
                 (Some(query), params)
             }
-            Predicate::Empty => (None, vec![]),
+            WherePredicate::Empty => (None, vec![]),
         }
     }
 }
 
-pub fn and<'a>(predicates: &'a [Predicate<'a>]) -> Predicate<'a> {
-    Predicate::And(predicates)
+pub fn and<'a>(predicates: &'a [WherePredicate<'a>]) -> WherePredicate<'a> {
+    WherePredicate::And(predicates)
 }
 
-pub fn or<'a>(predicates: &'a [Predicate<'a>]) -> Predicate<'a> {
-    Predicate::Or(predicates)
+pub fn or<'a>(predicates: &'a [WherePredicate<'a>]) -> WherePredicate<'a> {
+    WherePredicate::Or(predicates)
 }
 
-pub fn equals<'a, T: ToSql + Sync>(column: &'a str, value: &'a T) -> Predicate<'a> {
-    Predicate::Value(Expr::Value(ExprValue {
+pub fn equals<'a, T: ToSql + Sync>(column: &'a str, value: &'a T) -> WherePredicate<'a> {
+    WherePredicate::Value(Expr::Value(ExprValue {
         column: column.into(),
         condition: "=",
         value,
     }))
 }
 
-pub fn in_list<'a>(column: &'a str, values: &'a (dyn ToSql + Sync)) -> Predicate<'a> {
-    Predicate::Value(Expr::Array(ExprArray {
+pub fn in_list<'a>(column: &'a str, values: &'a (dyn ToSql + Sync)) -> WherePredicate<'a> {
+    WherePredicate::Value(Expr::Array(ExprArray {
         column: column.into(),
         condition: "=",
         values,
     }))
 }
 
-pub fn text_search<'a>(column: &'a str, lang: &'a str, value: &'a str) -> Predicate<'a> {
-    Predicate::Value(Expr::Raw(
+pub fn text_search<'a>(column: &'a str, lang: &'a str, value: &'a str) -> WherePredicate<'a> {
+    WherePredicate::Value(Expr::Raw(
         format!(
             "{} @@ websearch_to_tsquery('{}', '{}')",
             column, lang, value
@@ -178,12 +178,12 @@ pub fn text_search<'a>(column: &'a str, lang: &'a str, value: &'a str) -> Predic
     ))
 }
 
-pub fn raw<'a>(raw: String) -> Predicate<'a> {
-    Predicate::Value(Expr::Raw(raw))
+pub fn raw<'a>(raw: String) -> WherePredicate<'a> {
+    WherePredicate::Value(Expr::Raw(raw))
 }
 
-pub fn raw_str(raw: &str) -> Predicate {
-    Predicate::Value(Expr::RawStr(raw))
+pub fn raw_str(raw: &str) -> WherePredicate {
+    WherePredicate::Value(Expr::RawStr(raw))
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ use crate::model::Model;
 use crate::order_by::{Direction, OrderPredicate};
 use crate::pagination::{Cursor, DefaultSortKeys, Pagination, Row};
 use crate::pool::*;
-use crate::predicates::{Expr, ExprValueType, Predicate};
+use crate::predicates::{Expr, ExprValueType, WherePredicate};
 use crate::types::ToSql;
 use typed_builder::TypedBuilder;
 
@@ -29,7 +29,7 @@ pub struct QueryBuilder<'a> {
     #[builder(default = & [])]
     pub params: &'a [&'a (dyn ToSql + Sync)],
     #[builder(default = & [])]
-    pub predicates: &'a [Predicate<'a>],
+    pub predicates: &'a [WherePredicate<'a>],
     #[builder(default = & [])]
     pub order_by: &'a [OrderPredicate<'a>],
     #[builder(default = & None)]
@@ -568,6 +568,7 @@ mod tests {
             .is_returning(true)
             .ty(QueryType::Insert)
             .conflict_target(&["id", "name"])
+            .conflict_update(&[])
             .build();
         let (stmt, params) = qb.build_sql()?;
 

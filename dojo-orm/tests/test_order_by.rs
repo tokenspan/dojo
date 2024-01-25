@@ -12,15 +12,15 @@ mod common;
 
 macro_rules! create_users {
     ($db: ident, names = $($name:literal),+) => {
-        $db.insert_many(&[
-            $(User {
+        $db.insert(&[
+            $(&User {
                 id: Uuid::new_v4(),
                 name: $name.to_string(),
                 email: concat!($name, "@gmail.com").to_string(),
                 created_at: Utc::now().naive_utc(),
                 updated_at: Utc::now().naive_utc(),
             }),+
-        ]).await?;
+        ]).all().await?;
     };
 }
 

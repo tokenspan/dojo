@@ -32,13 +32,14 @@ async fn test_update_1() -> anyhow::Result<()> {
     }
 
     let id = Uuid::new_v4();
-    db.insert(&User {
+    db.insert(&[&User {
         id,
         name: "linh12".to_string(),
         email: "linh12@gmail.com".to_string(),
         created_at: Utc::now().naive_utc(),
         updated_at: Utc::now().naive_utc(),
-    })
+    }])
+    .all()
     .await?;
 
     let input = UpdateUser {
@@ -94,7 +95,7 @@ async fn test_update_embedded() -> anyhow::Result<()> {
     }
 
     let id = Uuid::new_v4();
-    db.insert(&Product {
+    db.insert(&[&Product {
         id,
         name: "product 1".to_string(),
         detail: Some(ProductDetail {
@@ -102,7 +103,8 @@ async fn test_update_embedded() -> anyhow::Result<()> {
         }),
         price: Some(100),
         created_at: Utc::now().naive_utc(),
-    })
+    }])
+    .all()
     .await?;
 
     let product = db

@@ -10,24 +10,27 @@ use crate::model::Model;
 use crate::order_by::OrderPredicate;
 use crate::pagination::{Cursor, DefaultSortKeys, Pagination};
 use crate::pool::*;
-use crate::predicates::{Expr, ExprValueType, Predicate};
+use crate::predicates::{Expr, ExprValueType, WherePredicate};
 use crate::query_builder::{QueryBuilder, QueryType};
 use crate::types::ToSql;
 
-pub struct WhereSelect<'a, T> {
+pub struct SelectOperation<'a, T>
+where
+    T: Model + Debug,
+{
     pub(crate) pool: &'a Pool<PostgresConnectionManager<NoTls>>,
     pub(crate) params: Vec<&'a (dyn ToSql + Sync)>,
     pub(crate) columns: &'a [&'a str],
     pub(crate) order_by: Vec<OrderPredicate<'a>>,
-    pub(crate) predicates: Vec<Predicate<'a>>,
+    pub(crate) predicates: Vec<WherePredicate<'a>>,
     pub(crate) _t: PhantomData<T>,
 }
 
-impl<'a, T> WhereSelect<'a, T>
+impl<'a, T> SelectOperation<'a, T>
 where
     T: Model + Debug,
 {
-    pub fn where_by(&'a mut self, predicate: Predicate<'a>) -> &'a mut Self {
+    pub fn where_by(&'a mut self, predicate: WherePredicate<'a>) -> &'a mut Self {
         self.predicates.push(predicate);
         self
     }
@@ -59,20 +62,9 @@ where
 
         let execution = Execution::new(self.pool, &qb);
         let query_all_fut = execution.all::<T>();
+        let query_count_fut = self.count();
 
-        let qb = QueryBuilder::builder()
-            .table_name(T::NAME)
-            .columns(&["COUNT(*) as count"])
-            .params(&self.params)
-            .predicates(&self.predicates)
-            .ty(QueryType::Paging)
-            .build();
-
-        let execution = Execution::new(self.pool, &qb);
-        let query_count_fut = execution.query_one();
-
-        let (records, row) = tokio::try_join!(query_all_fut, query_count_fut)?;
-        let count = row.get("count");
+        let (records, count) = tokio::try_join!(query_all_fut, query_count_fut)?;
 
         debug!(?records);
         debug!(?count);

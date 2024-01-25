@@ -6,24 +6,16 @@ pub use model::*;
 
 mod database;
 mod execution;
-mod insert_operation;
 mod model;
+mod operations;
 pub mod order_by;
 pub mod pagination;
 pub mod predicates;
 mod query_builder;
-mod where_delete;
-mod where_select;
-mod where_update;
+pub mod types;
 
 pub mod prelude {
     pub use crate::order_by::*;
-    pub use crate::predicates::*;
-}
-
-pub mod types {
-    pub use pgvector::Vector;
-    pub use postgres_types::*;
 }
 
 pub mod pool {
