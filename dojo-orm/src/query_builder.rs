@@ -1,6 +1,7 @@
 use futures_util::TryFutureExt;
 use std::fmt::{Debug, Formatter};
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use crate::model::Model;
 use crate::order_by::{Direction, OrderPredicate};
@@ -29,9 +30,9 @@ pub struct QueryBuilder<'a> {
     #[builder(default = & [])]
     pub params: &'a [&'a (dyn ToSql + Sync)],
     #[builder(default = & [])]
-    pub predicates: &'a [WherePredicate<'a>],
+    pub where_predicates: &'a [WherePredicate<'a>],
     #[builder(default = & [])]
-    pub order_by: &'a [OrderPredicate<'a>],
+    pub order_by_predicates: &'a [OrderPredicate<'a>],
     #[builder(default = & None)]
     pub before: &'a Option<Cursor>,
     #[builder(default = & None)]
@@ -68,77 +69,70 @@ impl<'a> QueryBuilder<'a> {
         stmt
     }
 
-    pub fn build_order_by_sql(
-        &self,
-        params_index: &mut usize,
-    ) -> (String, Vec<&(dyn ToSql + Sync)>) {
+    pub fn build_order_by_sql<'b>(
+        &'a self,
+        params_index: &'b mut usize,
+    ) -> (String, Vec<&'a (dyn ToSql + Sync)>) {
         let mut stmt = "".to_string();
-        if self.ty == QueryType::Select {
-            let mut params: Vec<&(dyn ToSql + Sync)> = vec![];
+        let mut params: Vec<&(dyn ToSql + Sync)> = vec![];
+        let mut order_by = vec![];
 
-            if !self.order_by.is_empty() {
-                stmt.push_str(" ORDER BY ");
+        if self.ty == QueryType::Paging {
+            let direction = if self.first.is_some() {
+                Direction::Asc
+            } else {
+                Direction::Desc
+            };
 
-                for op in self.order_by {
-                    match op {
-                        OrderPredicate::Asc(column) => {
-                            stmt.push_str(&format!("{} ASC", column));
-                        }
-                        OrderPredicate::Desc(column) => {
-                            stmt.push_str(&format!("{} DESC", column));
-                        }
-                        OrderPredicate::Nearest(column, vector) => {
-                            stmt.push_str(&format!("{} <-> ${}", column, params_index));
-                            params.push(vector);
-                            *params_index += 1;
-                        }
-                    }
+            for (i, key) in self.default_keys.iter().enumerate() {
+                let direction = if i == 0 { direction } else { Direction::Asc };
+                order_by.push(format!("{} {}", key, direction));
+            }
+        }
+
+        for op in self.order_by_predicates {
+            match op {
+                OrderPredicate::Asc(column) => {
+                    order_by.push(format!("{} ASC", column));
+                }
+                OrderPredicate::Desc(column) => {
+                    order_by.push(format!("{} DESC", column));
+                }
+                OrderPredicate::Nearest(column, vector) => {
+                    order_by.push(format!("{} <-> ${}", column, params_index));
+                    params.push(vector);
+                    *params_index += 1;
                 }
             }
-
-            return (stmt, params);
         }
 
-        let direction = if self.first.is_some() {
-            Direction::Asc
-        } else {
-            Direction::Desc
-        };
-
-        let order_sql = if let Some(cursor) = self.before {
-            cursor.to_order_by_stmt(direction)
-        } else if let Some(cursor) = self.after {
-            cursor.to_order_by_stmt(direction)
-        } else {
-            Cursor::order_by_stmt_by_keys(&self.default_keys, direction)
-        };
-
-        if !order_sql.is_empty() {
+        if !order_by.is_empty() {
             stmt.push_str(" ORDER BY ");
-            stmt.push_str(&order_sql);
+            stmt.push_str(&order_by.join(", "));
         }
 
-        (stmt, vec![])
+        (stmt, params)
     }
 
-    pub fn build_where_sql(&self, params_index: &mut usize) -> (String, Vec<&(dyn ToSql + Sync)>) {
+    pub fn build_where_sql<'b>(
+        &'a self,
+        params_index: &'b mut usize,
+    ) -> (String, Vec<&'a (dyn ToSql + Sync)>) {
         let mut params = self.params.to_vec();
         let mut stmt = "".to_string();
         let mut predicates_str = vec![];
 
         if let Some(before) = self.before {
-            let (before_sql, before_params) = before.to_where_stmt(Direction::Desc);
+            let (before_sql, before_params) = before.to_where_stmt(Direction::Desc, params_index);
             predicates_str.push(before_sql);
-            *params_index += before_params.len();
             params.extend(before_params);
         } else if let Some(after) = self.after {
-            let (after_sql, after_params) = after.to_where_stmt(Direction::Asc);
+            let (after_sql, after_params) = after.to_where_stmt(Direction::Asc, params_index);
             predicates_str.push(after_sql);
-            *params_index += after_params.len();
             params.extend(after_params);
         }
 
-        for predicate in self.predicates {
+        for predicate in self.where_predicates {
             let (predicate_sql, predicate_params) = predicate.to_sql(params_index);
             if let Some(predicate_sql) = predicate_sql {
                 predicates_str.push(predicate_sql);
@@ -148,7 +142,6 @@ impl<'a> QueryBuilder<'a> {
         if !predicates_str.is_empty() {
             stmt.push_str(" WHERE ");
             stmt.push_str(&predicates_str.join(" AND "));
-            // stmt.push_str(" ");
         }
 
         (stmt, params)
@@ -189,7 +182,7 @@ impl<'a> QueryBuilder<'a> {
         stmt
     }
 
-    pub fn build_select_sql(&self) -> (String, Vec<&(dyn ToSql + Sync)>) {
+    pub fn build_select_sql(&'a self) -> (String, Vec<&'a (dyn ToSql + Sync)>) {
         let mut params_index = 1;
         let mut stmt = self.build_select_from_sql();
 
@@ -330,14 +323,6 @@ impl<'a> QueryBuilder<'a> {
             ));
         }
 
-        // if self.first.is_some() && self.after.is_none() {
-        //     return Err(anyhow::anyhow!("first must be specified with after"));
-        // }
-
-        // if self.last.is_some() && self.before.is_none() {
-        //     return Err(anyhow::anyhow!("last must be specified with before"));
-        // }
-
         let (stmt, params) = match self.ty {
             QueryType::Select => self.build_select_sql(),
             QueryType::Paging => self.build_select_sql(),
@@ -424,7 +409,7 @@ mod tests {
             .table_name("users")
             .columns(&["id", "name", "age", "created_at"])
             .default_keys(vec!["created_at".to_string(), "id".to_string()])
-            .predicates(predicates)
+            .where_predicates(predicates)
             .first(Some(10))
             .after(&cursor)
             .ty(QueryType::Paging)
@@ -469,7 +454,7 @@ mod tests {
             .table_name("users")
             .columns(&["id", "name", "age", "created_at"])
             .default_keys(vec!["created_at".to_string(), "id".to_string()])
-            .predicates(predicates)
+            .where_predicates(predicates)
             .last(Some(10))
             .before(&cursor)
             .ty(QueryType::Paging)
@@ -493,7 +478,7 @@ mod tests {
             .table_name("users")
             .columns(columns)
             .default_keys(vec!["created_at".to_string(), "id".to_string()])
-            .predicates(predicates)
+            .where_predicates(predicates)
             .ty(QueryType::Select)
             .build();
         let (stmt, params) = qb.build_sql()?;
@@ -517,7 +502,7 @@ mod tests {
             .table_name("users")
             .columns(&["name", "age"])
             .default_keys(vec!["created_at".to_string(), "id".to_string()])
-            .predicates(predicates)
+            .where_predicates(predicates)
             .params(&params)
             .ty(QueryType::Update)
             .is_returning(true)
@@ -657,7 +642,7 @@ mod tests {
         let qb = QueryBuilder::builder()
             .table_name("users")
             .columns(columns)
-            .predicates(predicates)
+            .where_predicates(predicates)
             .ty(QueryType::Delete)
             .is_returning(true)
             .build();

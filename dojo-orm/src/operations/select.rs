@@ -13,6 +13,7 @@ use crate::pool::*;
 use crate::predicates::{Expr, ExprValueType, WherePredicate};
 use crate::query_builder::{QueryBuilder, QueryType};
 use crate::types::ToSql;
+use anyhow::Result;
 
 pub struct SelectOperation<'a, T>
 where
@@ -46,13 +47,13 @@ where
         after: Option<Cursor>,
         last: Option<i64>,
         before: Option<Cursor>,
-    ) -> anyhow::Result<Pagination<T>> {
+    ) -> Result<Pagination<T>> {
         let qb = QueryBuilder::builder()
             .table_name(T::NAME)
             .default_keys(T::sort_keys())
             .columns(self.columns)
             .params(&self.params)
-            .predicates(&self.predicates)
+            .where_predicates(&self.predicates)
             .first(first)
             .after(&after)
             .last(last)
@@ -72,24 +73,24 @@ where
         Ok(Pagination::new(records, first, after, last, before, count))
     }
 
-    fn query_by_limit(&'a self, limit: i64) -> QueryBuilder<'a> {
+    fn build_query_by_limit(&'a self, limit: i64) -> QueryBuilder<'a> {
         QueryBuilder::builder()
             .table_name(T::NAME)
             .columns(self.columns)
             .params(&self.params)
-            .predicates(&self.predicates)
-            .order_by(&self.order_by)
+            .where_predicates(&self.predicates)
+            .order_by_predicates(&self.order_by)
             .ty(QueryType::Select)
             .limit(limit)
             .build()
     }
 
-    pub async fn count(&'a self) -> anyhow::Result<i64> {
+    pub async fn count(&'a self) -> Result<i64> {
         let qb = QueryBuilder::builder()
             .table_name(T::NAME)
             .columns(&["COUNT(*) as count"])
             .params(&self.params)
-            .predicates(&self.predicates)
+            .where_predicates(&self.predicates)
             .ty(QueryType::Select)
             .build();
 
@@ -101,22 +102,22 @@ where
         Ok(count)
     }
 
-    pub async fn limit(&'a self, limit: i64) -> anyhow::Result<Vec<T>> {
-        let qb = self.query_by_limit(limit);
+    pub async fn limit(&'a self, limit: i64) -> Result<Vec<T>> {
+        let qb = self.build_query_by_limit(limit);
 
         let execution = Execution::new(self.pool, &qb);
         execution.all().await
     }
 
-    pub async fn first(&'a self) -> anyhow::Result<Option<T>> {
-        let qb = self.query_by_limit(1);
+    pub async fn first(&'a self) -> Result<Option<T>> {
+        let qb = self.build_query_by_limit(1);
 
         let execution = Execution::new(self.pool, &qb);
         execution.first().await
     }
 
-    pub async fn all(&'a self) -> anyhow::Result<Vec<T>> {
-        let qb = self.query_by_limit(500);
+    pub async fn all(&'a self) -> Result<Vec<T>> {
+        let qb = self.build_query_by_limit(500);
 
         let execution = Execution::new(self.pool, &qb);
         execution.all().await

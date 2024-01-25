@@ -1,4 +1,3 @@
-use googletest::prelude::*;
 use pgvector::Vector;
 
 use common::*;
@@ -39,12 +38,13 @@ async fn test_vector_search() -> anyhow::Result<()> {
     //     ]
     // );
 
-    let embedding = Vector::from(vec![1.0, 2.0, 3.0]);
-    let _items = db
+    let embedding = Vector::from(vec![8.0, 7.0, 6.0]);
+    let items = db
         .bind::<Item>()
         .order_by(nearest("embedding", &embedding))
         .all()
         .await?;
+    println!("{:?}", items);
     // assert_that!(
     //     &items,
     //     contains_each![

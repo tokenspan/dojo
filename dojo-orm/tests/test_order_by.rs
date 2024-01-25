@@ -47,6 +47,8 @@ async fn test_order_by_desc() -> anyhow::Result<()> {
         .limit(2)
         .await?;
 
+    println!("{:?}", users);
+
     assert_that!(
         users,
         contains_each![

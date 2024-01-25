@@ -33,7 +33,7 @@ where
         let qb = QueryBuilder::builder()
             .table_name(T::NAME)
             .columns(T::COLUMNS)
-            .predicates(&self.predicates)
+            .where_predicates(&self.predicates)
             .ty(QueryType::Delete)
             .is_returning(true)
             .build();

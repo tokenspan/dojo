@@ -43,7 +43,7 @@ where
     {
         let mut params = vec![];
         for p in self.data {
-            params.extend_from_slice(p.params().as_slice());
+            params.extend(p.params());
         }
 
         let qb = self.build_query(&params);
@@ -57,7 +57,7 @@ where
     {
         let mut params = vec![];
         for p in self.data {
-            params.extend_from_slice(p.params().as_slice());
+            params.extend(p.params());
         }
 
         let qb = self.build_query(&params);

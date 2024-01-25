@@ -22,7 +22,7 @@ impl Display for Direction {
         match self {
             Direction::Asc => write!(f, "ASC"),
             Direction::Desc => write!(f, "DESC"),
-            Direction::Nearest => write!(f, "NEAREST"),
+            Direction::Nearest => write!(f, "<->"),
         }
     }
 }
@@ -31,6 +31,16 @@ pub enum OrderPredicate<'a> {
     Asc(&'a str),
     Desc(&'a str),
     Nearest(&'a str, &'a Vector),
+}
+
+impl<'a> From<(&'a String, Direction)> for OrderPredicate<'a> {
+    fn from((column, direction): (&'a String, Direction)) -> Self {
+        match direction {
+            Direction::Asc => OrderPredicate::Asc(column),
+            Direction::Desc => OrderPredicate::Desc(column),
+            _ => panic!("invalid direction"),
+        }
+    }
 }
 
 pub fn asc(column: &str) -> OrderPredicate {

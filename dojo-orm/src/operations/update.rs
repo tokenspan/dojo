@@ -39,7 +39,7 @@ where
             .table_name(T::NAME)
             .columns(&self.columns)
             .params(&self.params)
-            .predicates(&self.predicates)
+            .where_predicates(&self.predicates)
             .ty(QueryType::Update)
             .is_returning(true)
             .returning(T::COLUMNS)

@@ -15,6 +15,7 @@ mod query_builder;
 pub mod types;
 
 pub mod prelude {
+    pub use crate::operations::*;
     pub use crate::order_by::*;
 }
 
