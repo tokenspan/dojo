@@ -13,6 +13,7 @@ use bytes::BytesMut;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
+use tracing_subscriber::fmt::format;
 
 pub use async_graphql::*;
 
@@ -59,63 +60,41 @@ pub struct Cursor {
 }
 
 impl Cursor {
-    pub fn to_where_stmt(&self, direction: Direction) -> (String, Vec<&(dyn ToSql + Sync)>) {
+    pub fn to_where_stmt(
+        &self,
+        direction: Direction,
+        params_index: &mut usize,
+    ) -> (String, Vec<&(dyn ToSql + Sync)>) {
         let mut columns = vec![];
-        let mut params: Vec<&(dyn ToSql + Sync)> = vec![];
+        let mut stmt = "".to_string();
+
         for value in &self.values {
             columns.push(value.column.clone());
-            params.push(&value.value);
         }
-        let mut stmt = "(".to_string();
+
+        stmt.push('(');
         stmt.push_str(&columns.join(", "));
         stmt.push_str(") ");
-
-        if direction == Direction::Asc {
-            stmt.push('>');
+        let ch = if direction == Direction::Asc {
+            '>'
         } else {
-            stmt.push('<');
-        }
+            '<'
+        };
+        stmt.push(ch);
         stmt.push_str(" (");
-        stmt.push_str(
-            &params
-                .iter()
-                .enumerate()
-                .map(|(i, _)| format!("${}", i + 1))
-                .collect::<Vec<_>>()
-                .join(", "),
-        );
+
+        let mut params: Vec<&(dyn ToSql + Sync)> = vec![];
+        let mut args = vec![];
+        for value in &self.values {
+            params.push(&value.value);
+            args.push(format!("${}", params_index));
+            *params_index += 1;
+        }
+
+        stmt.push_str(&args.join(", "));
         stmt.push(')');
 
         (stmt, params)
-    }
-
-    pub fn to_order_by_stmt(&self, direction: Direction) -> String {
-        let keys = self
-            .values
-            .iter()
-            .map(|v| v.column.clone())
-            .collect::<Vec<_>>();
-        Self::order_by_stmt_by_keys(&keys, direction)
-    }
-
-    pub fn order_by_stmt_by_keys(keys: &[String], direction: Direction) -> String {
-        let mut stmt = "".to_string();
-        if let Some(value) = keys.first() {
-            stmt.push_str(value);
-            if direction == Direction::Asc {
-                stmt.push_str(" ASC");
-            } else {
-                stmt.push_str(" DESC");
-            }
-        }
-
-        for value in keys.iter().skip(1) {
-            stmt.push_str(", ");
-            stmt.push_str(value);
-            stmt.push_str(" ASC");
-        }
-
-        stmt
     }
 }
 
@@ -207,7 +186,7 @@ mod tests {
             value: crate::model::Value::NaiveDateTime(created_at),
         };
         let cursor = Cursor::new(vec![cursor_value]);
-        let (sql, params) = cursor.to_where_stmt(Direction::Asc);
+        let (sql, params) = cursor.to_where_stmt(Direction::Asc, &mut 1);
         println!("sql: {}", sql);
         println!("params: {:?}", params);
 
@@ -228,7 +207,7 @@ mod tests {
                 value: crate::model::Value::Uuid(uuid),
             },
         ]);
-        let (sql, params) = cursor.to_where_stmt(Direction::Asc);
+        let (sql, params) = cursor.to_where_stmt(Direction::Asc, &mut 1);
         println!("sql: {}", sql);
         println!("params: {:?}", params);
 

@@ -33,7 +33,7 @@ async fn test_insert() -> anyhow::Result<()> {
         updated_at: Utc::now().naive_utc(),
     };
 
-    let user = db.insert(&input).execute().await?;
+    let user = db.insert(&[&input]).first().await?.unwrap();
     assert_that!(
         user,
         pat!(User {
@@ -60,6 +60,78 @@ async fn test_insert() -> anyhow::Result<()> {
             updated_at: anything(),
         }))
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_insert_conflict_do_nothing() -> anyhow::Result<()> {
+    let db: Database;
+    setup!(db);
+
+    #[derive(Serialize, Deserialize, Debug, Model)]
+    #[dojo(name = "users", sort_keys = ["created_at", "id"])]
+    struct User {
+        id: Uuid,
+        name: String,
+        email: String,
+        created_at: NaiveDateTime,
+        updated_at: NaiveDateTime,
+    }
+
+    let input = User {
+        id: Uuid::new_v4(),
+        name: "linh12".to_string(),
+        email: "linh12@gmail.com".to_string(),
+        created_at: Utc::now().naive_utc(),
+        updated_at: Utc::now().naive_utc(),
+    };
+    db.insert(&[&input]).all().await?;
+
+    let user = db
+        .insert(&[&input])
+        .on_conflict(&["email"])
+        .do_nothing()
+        .first()
+        .await?;
+
+    println!("user: {:?}", user);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_insert_conflict_update() -> anyhow::Result<()> {
+    let db: Database;
+    setup!(db);
+
+    #[derive(Serialize, Deserialize, Debug, Model)]
+    #[dojo(name = "users", sort_keys = ["created_at", "id"])]
+    struct User {
+        id: Uuid,
+        name: String,
+        email: String,
+        created_at: NaiveDateTime,
+        updated_at: NaiveDateTime,
+    }
+
+    let input = User {
+        id: Uuid::new_v4(),
+        name: "linh12".to_string(),
+        email: "linh12@gmail.com".to_string(),
+        created_at: Utc::now().naive_utc(),
+        updated_at: Utc::now().naive_utc(),
+    };
+    db.insert(&[&input]).all().await?;
+
+    let user = db
+        .insert(&[&input])
+        .on_conflict(&["email"])
+        .do_update(&[("name", &"linh13")])
+        .first()
+        .await?;
+
+    println!("user: {:?}", user);
 
     Ok(())
 }
@@ -94,7 +166,7 @@ async fn test_insert_many() -> anyhow::Result<()> {
         updated_at: Utc::now().naive_utc(),
     };
 
-    let users = db.insert_many(&[input1, input2]).execute().await?;
+    let users = db.insert(&[&input1, &input2]).all().await?;
     assert_that!(
         users,
         contains_each![
@@ -158,7 +230,7 @@ async fn test_insert_many_empty() -> anyhow::Result<()> {
         updated_at: NaiveDateTime,
     }
 
-    let users = db.insert_many::<User>(&[]).execute().await?;
+    let users = db.insert::<User>(&[]).all().await?;
     assert_that!(users, empty());
 
     let users = db.bind::<User>().all().await?;
@@ -197,7 +269,7 @@ async fn test_insert_embedded() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    let product = db.insert(&input).execute().await?;
+    let product = db.insert(&[&input]).first().await?.unwrap();
     assert_that!(
         product,
         pat!(Product {
@@ -245,7 +317,7 @@ async fn test_insert_vec_embedded() -> anyhow::Result<()> {
         created_at: Utc::now().naive_utc(),
     };
 
-    let result = db.insert(&input).execute().await?;
+    let result = db.insert(&[&input]).first().await?.unwrap();
     assert_that!(
         result,
         pat!(Test {
