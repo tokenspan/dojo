@@ -17,6 +17,7 @@ pub mod types;
 pub mod prelude {
     pub use crate::operations::*;
     pub use crate::order_by::*;
+    pub use crate::predicates::*;
 }
 
 pub mod pool {
