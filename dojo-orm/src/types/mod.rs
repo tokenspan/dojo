@@ -1,4 +1,4 @@
 mod pg_vector;
 
-pub use pgvector::Vector;
+pub use pg_vector::*;
 pub use postgres_types::*;

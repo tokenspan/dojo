@@ -1,9 +1,9 @@
-use pgvector::Vector;
-
 use common::*;
 use dojo_macros::Model;
 use dojo_orm::prelude::nearest;
+use dojo_orm::types::Vector;
 use dojo_orm::Database;
+use googletest::prelude::*;
 
 mod common;
 
@@ -25,18 +25,18 @@ async fn test_vector_search() -> anyhow::Result<()> {
         embedding: Vector::from(vec![4.0, 5.0, 6.0]),
     };
 
-    let _items = db.insert(&[&item1, &item2]).all().await?;
-    // assert_that!(
-    //     &items,
-    //     contains_each![
-    //         pat!(Item {
-    //             embedding: eq(Vector::from(vec![1.0, 2.0, 3.0]))
-    //         }),
-    //         pat!(Item {
-    //             embedding: eq(Vector::from(vec![4.0, 5.0, 6.0]))
-    //         })
-    //     ]
-    // );
+    let items = db.insert(&[&item1, &item2]).all().await?;
+    assert_that!(
+        items,
+        contains_each![
+            pat!(Item {
+                embedding: eq(Vector::from(vec![1.0, 2.0, 3.0]))
+            }),
+            pat!(Item {
+                embedding: eq(Vector::from(vec![4.0, 5.0, 6.0]))
+            })
+        ]
+    );
 
     let embedding = Vector::from(vec![8.0, 7.0, 6.0]);
     let items = db
@@ -44,18 +44,18 @@ async fn test_vector_search() -> anyhow::Result<()> {
         .order_by(nearest("embedding", &embedding))
         .all()
         .await?;
-    println!("{:?}", items);
-    // assert_that!(
-    //     &items,
-    //     contains_each![
-    //         pat!(Item {
-    //             embedding: eq(Vector::from(vec![1.0, 2.0, 3.0]))
-    //         }),
-    //         pat!(Item {
-    //             embedding: eq(Vector::from(vec![4.0, 5.0, 6.0]))
-    //         })
-    //     ]
-    // );
+
+    assert_that!(
+        items,
+        elements_are![
+            pat!(Item {
+                embedding: eq(Vector::from(vec![4.0, 5.0, 6.0]))
+            }),
+            pat!(Item {
+                embedding: eq(Vector::from(vec![1.0, 2.0, 3.0]))
+            }),
+        ]
+    );
 
     Ok(())
 }

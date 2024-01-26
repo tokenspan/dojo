@@ -30,7 +30,6 @@ strum = { version = "0.25", features = ["derive"] }
 typed-builder = "0.18.0"
 futures = "0.3"
 futures-util = "0.3.30"
-pgvector = { version = "0.3", features = ["postgres", "serde"] }
 
 [dependencies.tokio-postgres]
 version = "0.7.2"

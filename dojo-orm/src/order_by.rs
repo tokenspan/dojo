@@ -1,5 +1,5 @@
+use crate::types::Vector;
 use async_graphql::Enum;
-use pgvector::Vector;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use strum::EnumString;
