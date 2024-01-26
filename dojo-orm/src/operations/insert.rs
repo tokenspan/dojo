@@ -67,4 +67,16 @@ where
         let execution = Execution::new(&self.pool, &qb);
         execution.first().await
     }
+
+    pub async fn first_or_throw(&self) -> Result<T> {
+        let params = if let Some(data) = self.data.first() {
+            data.params()
+        } else {
+            return Err(anyhow::anyhow!("no data to insert"));
+        };
+
+        let qb = self.build_query(&params);
+        let execution = Execution::new(&self.pool, &qb);
+        execution.first_or_throw().await
+    }
 }

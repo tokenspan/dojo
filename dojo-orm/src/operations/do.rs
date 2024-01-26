@@ -37,10 +37,7 @@ where
             .build()
     }
 
-    pub async fn all(&self) -> Result<Vec<T>>
-    where
-        T: Model + Debug,
-    {
+    pub async fn all(&self) -> Result<Vec<T>> {
         let mut params = vec![];
         for p in self.data {
             params.extend(p.params());
@@ -51,10 +48,7 @@ where
         execution.all().await
     }
 
-    pub async fn first(&self) -> Result<Option<T>>
-    where
-        T: Model + Debug,
-    {
+    pub async fn first(&self) -> Result<Option<T>> {
         let mut params = vec![];
         for p in self.data {
             params.extend(p.params());
@@ -63,5 +57,17 @@ where
         let qb = self.build_query(&params);
         let execution = Execution::new(&self.pool, &qb);
         execution.first().await
+    }
+
+    pub async fn first_or_throw(&self) -> Result<T> {
+        let params = if let Some(data) = self.data.first() {
+            data.params()
+        } else {
+            return Err(anyhow::anyhow!("no data to insert"));
+        };
+
+        let qb = self.build_query(&params);
+        let execution = Execution::new(&self.pool, &qb);
+        execution.first_or_throw().await
     }
 }
